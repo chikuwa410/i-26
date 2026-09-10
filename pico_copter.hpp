@@ -12,6 +12,7 @@
 #include "radio.hpp"
 #include "control.hpp"
 #include <math.h>
+#include "rgbled.hpp"
 
 #define LED_PIN 25
 #define MAINLOOP loop_400Hz

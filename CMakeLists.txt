@@ -56,6 +56,8 @@ add_executable(i26
     pwm.cpp
     radio.cpp
     control.cpp
+    rgbled.cpp
+    WS2812.cpp
 )
 
 target_include_directories(i26 PRIVATE
@@ -66,6 +68,7 @@ target_include_directories(i26 PRIVATE
 target_link_libraries(i26 PRIVATE
     hardware_spi
     hardware_pwm
+    hardware_pio
     hardware_uart
     pico_stdlib
     pico_multicore
@@ -74,3 +77,6 @@ target_link_libraries(i26 PRIVATE
 pico_enable_stdio_usb(i26 1)
 pico_enable_stdio_uart(i26 0)
 pico_add_extra_outputs(i26)
+pico_generate_pio_header(i26
+    ${CMAKE_CURRENT_LIST_DIR}/WS2812.pio
+)

@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 #include "ekf.hpp"
 #include <math.h>
+#include "rgbled.hpp"
 
 using Eigen::MatrixXd;
 using Eigen::MatrixXf;

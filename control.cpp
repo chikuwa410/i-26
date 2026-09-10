@@ -281,6 +281,7 @@ void loop_400Hz(void)
   }
   E_time=time_us_32();
   D_time=E_time-S_time;
+  rgbled_red();
 }
 
 void control_init(void)
