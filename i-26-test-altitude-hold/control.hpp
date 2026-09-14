@@ -1,0 +1,102 @@
+#ifndef CONTROL_HPP
+#define CONTROL_HPP
+
+#include <stdio.h>
+#include "pico_copter.hpp"
+#include "pico/stdlib.h"
+#include "sensor.hpp"
+#include "hardware/pwm.h"
+#include "hardware/irq.h"
+#include <Eigen/Dense>
+#include "ekf.hpp"
+#include <math.h>
+
+using Eigen::MatrixXd;
+using Eigen::MatrixXf;
+using Eigen::Matrix;
+using Eigen::PartialPivLU;
+using namespace Eigen;
+
+#define BATTERY_VOLTAGE (11.1)
+
+
+//グローバル関数の宣言
+void loop_400Hz(void);
+void control_init();
+void rate_control(void);
+void angle_control(void);
+void gyro_calibration(void);
+void variable_init(void);
+void log_output(void);
+void lotate_altitude_init(float Theta,float Psi,float Phi);
+float lotate_altitude(float l_distance);
+void Auto_fly(void);
+void Auto_takeoff(void);
+void Auto_landing(void);
+void Hovering(void);
+
+//グローバル変数
+extern uint8_t LockMode;
+extern volatile uint8_t Logoutputflag;
+extern float Az;
+extern float Phi,Theta,Psi;
+extern float lotated_distance;
+extern float Kalman_alt;
+extern float z_acc;
+extern float T_stick;
+extern float auto_mode_count;
+extern float auto_mode;
+extern float ideal;
+extern float hove_time;
+extern float flying_mode;
+extern float input;
+extern float stop_flag;
+extern uint64_t count_up;
+extern volatile uint8_t altitude_has_sample;
+extern volatile uint32_t last_altitude_update_us;
+extern const uint32_t AUTO_ALTITUDE_STALE_US;
+
+class PID
+{
+  private:
+    float m_kp;
+    float m_ti;
+    float m_td;
+    float m_filter_time_constant;
+    float m_err,m_err2,m_err3;
+    float m_h;
+  public:
+    float m_filter_output;
+    float m_integral;
+    PID();
+    void set_parameter(
+        float kp, 
+        float ti, 
+        float td,
+        float filter_time_constant, 
+        float h);
+    void reset(void);
+    void i_reset(void);
+    void printGain(void);
+    float filter(float x);
+    float update(float err);
+};
+
+class Filter
+{
+  private:
+    float m_state;
+    float m_T;
+    float m_h;
+  public:
+    float m_out;
+    Filter();
+    void set_parameter(
+        float T,
+        float h);
+    void reset(void);
+    float update(float u);
+};
+
+
+#endif

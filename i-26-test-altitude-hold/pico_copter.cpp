@@ -1,0 +1,81 @@
+// comment
+#include "pico_copter.hpp"
+
+//グローバル変数
+uint8_t Arm_flag=0;
+semaphore_t sem;
+
+int main(void)
+{
+  int start_wait=5;
+  
+  gpio_init(LED_PIN);
+  gpio_set_dir(LED_PIN, GPIO_OUT);
+  
+  //Initialize stdio for Pico
+  stdio_init_all();
+  
+  //Initialize LSM9DS1
+  imu_mag_init();
+  
+  //Initialize Radio
+  radio_init();
+  
+  //Initialize Variavle
+  variable_init();
+  
+  //Initilize Control
+  control_init();
+  Kalman_init();
+
+  //ToFセンサの初期化
+  const bool altitude_available = initialize_Altitude();
+  printf("#ToF init=%s\n", altitude_available ? "OK" : "FAILED");
+  
+  //Initialize PWM
+  //Start 400Hz Interval
+  ESC_calib=0;
+  pwm_init();
+
+  while(start_wait)
+  {
+    start_wait--;
+    printf("#Please wait %d[s]\r",start_wait); 
+    sleep_ms(1000);
+  }
+  printf("\n");
+ 
+  //マルチコア関連の設定
+  sem_init(&sem, 0, 1);
+  multicore_launch_core1(angle_control);  
+
+  Arm_flag=1;
+  uint64_t last_tof_poll_time_us=time_us_64();
+  
+  while(1)
+  {
+    // ToFセンサから値を取得
+    uint64_t current_tof_poll_time_us=time_us_64();
+    if (altitude_available && current_tof_poll_time_us-last_tof_poll_time_us>=5000ULL)
+    {
+      last_tof_poll_time_us=current_tof_poll_time_us;
+      if (get_Altitude())
+      {
+        z_acc = Az - 9.76548;
+        lotate_altitude_init(Theta,Psi,Phi);
+        lotated_distance = lotate_altitude(distance);
+        Kalman_alt = Kalman_PID(lotated_distance,z_acc);
+        last_altitude_update_us = time_us_32();
+        altitude_has_sample = 1;
+      }
+    }
+
+    //printf("Arm_flag:%d LockMode:%d\n",Arm_flag, LockMode);
+    tight_loop_contents();
+    while (Logoutputflag==1){
+      log_output();
+    }
+  }
+
+  return 0;
+}
