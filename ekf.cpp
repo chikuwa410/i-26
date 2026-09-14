@@ -7,11 +7,471 @@
 
 float MN,ME,MD;
 
-
 //Initilize White Noise
 std::random_device rnd;
 std::mt19937 mt(rnd());  
 std::normal_distribution<> norm(0.0, 1.0);
+
+//Kalman Horizontal 
+Matrix<float, 2 ,2> Sigma_Yn_est_v = MatrixXf::Zero(3,3);
+Matrix<float, 2,2> Sigma_Yn_pre_v = MatrixXf::Zero(3,3);
+Matrix<float, 1,2> observation_mat_v = MatrixXf::Zero(1,3);
+Matrix<float, 2,1> observation_mat_transposed_v = MatrixXf::Zero(3,1);
+Matrix<float, 2,1> control_mat_v = MatrixXf::Zero(3,1);
+Matrix<float, 2,2> unit_mat_v = MatrixXf::Zero(3,3);
+Matrix<float, 2,2> system_mat_v = MatrixXf::Zero(3,3);
+Matrix<float, 1, 1> Kal_element_v;
+Matrix<float, 3, 2> K_v;
+Matrix<float, 1, 1> R_mat_v = MatrixXf::Zero(2,2);
+// Matrix<float, 2, 1> R = MatrixXf::Zero(2,1);
+Matrix<float,1,1> Kal_element_inv_v = Kal_element.inverse();
+Matrix<float, 2,2> last_Sigma_Yn_pre_v = MatrixXf::Zero(3,3);
+Matrix<float, 2,1> mu_Yn_pre_v  = MatrixXf::Zero(3,1);
+Matrix<float, 2,1> last_mu_Yn_pre_v = MatrixXf::Zero(3,1);
+Matrix<float, 2,1> mu_Yn_est_v = MatrixXf::Zero(3,1);
+Matrix<float, 2,2> Q_mat_v = MatrixXf::Zero(3,3);
+Matrix<float, 2,2> yn_mat_v;
+Matrix<float, 2,2> k_inv_v;
+
+//Kalman Altitude
+Matrix<float, 2 ,2> Sigma_Yn_est = MatrixXf::Zero(2,2);
+Matrix<float, 2,2> Sigma_Yn_pre = MatrixXf::Zero(2,2);
+Matrix<float, 1,2> observation_mat = MatrixXf::Zero(1,2);
+Matrix<float, 2,1> observation_mat_transposed = MatrixXf::Zero(2,1);
+Matrix<float, 2,1> control_mat = MatrixXf::Zero(2,1);
+Matrix<float, 2,2> unit_mat = MatrixXf::Zero(2,2);
+Matrix<float, 2,2> system_mat = MatrixXf::Zero(2,2);
+Matrix<float, 1, 1> Kal_element;
+Matrix<float, 2, 1> K;
+Matrix<float, 1, 1> R_mat = MatrixXf::Zero(1,1);
+// Matrix<float, 2, 1> R = MatrixXf::Zero(2,1);
+Matrix<float,1,1> Kal_element_inv = Kal_element.inverse();
+Matrix<float, 2,2> last_Sigma_Yn_pre = MatrixXf::Zero(2,2);
+Matrix<float, 2,1> mu_Yn_pre  = MatrixXf::Zero(2,1);
+Matrix<float, 2,1> last_mu_Yn_pre = MatrixXf::Zero(2,1);
+Matrix<float, 2,1> mu_Yn_est = MatrixXf::Zero(2,1);
+Matrix<float, 2,2> Q_mat = MatrixXf::Zero(2,2);
+Matrix<float, 1,1> u_n  = MatrixXf::Zero(1,1);
+Matrix<float, 1,1> u_n_v  = MatrixXf::Zero(1,1);
+Matrix<float, 1,1> yn_mat;
+Matrix<float, 1,1> k_inv;
+// float stdv_Q = 0.08;
+float stdv_Q = 0.01;
+float stdv_Q_v = 0.025;
+// float stdv_Q = 0.5;
+float Q_k = std::pow(stdv_Q,2.0);
+float Q_k_v = std::pow(stdv_Q_v,2.0);
+float error = 0;
+float error_v = 0;
+float r = 0;
+float r_v = 0; 
+float last_error = 0;
+float last_error_v = 0;
+float Control_T = 0.02;
+float de = 0;
+float ie = 0;
+float de_v = 0;
+float ie_v = 0;
+float observe_y;
+// float Kp = 0.2;
+// float Ki = 900;
+// float Kd = 0;
+// float Kp_v = 0.2;
+// float Ki_v = 900;
+// float Kd_v = 0;
+// float Kp = 1;
+// float Kp = 0.1;
+float Kp = 0.08;
+// float Ki = 900;//400Hz
+//float Ki = 120;//57 58 Hz    129  128.571 128 125
+float Ki = 112.5;//50Hz 112.5 
+float Kd = 0;
+// float Kp_v = 0.08;
+float Kp_v = 0.003;
+// float Ki_v = 300;//400Hz
+//float Ki_v = 30;//57 58Hz    43 42.857 42 39
+float Ki_v = 37.5;//50Hz 37.5 
+float Kd_v = 0;
+float u = 0;
+float u_v = 0;
+float h_kalman = 0.02;
+float m = 0.8;
+float stdv_R = 0.035;
+// float stdv_R = 7.965;
+// float stdv_R = 0.7965;
+float integral = 0;
+float differential = 0;
+float integral_v = 0;
+float differential_v = 0;
+float eta = 0.125;
+
+//Kalmanfilter for Horizontal
+float h_horizontal = 0.2;
+//推定,予測する状態
+float Xn_pre_1 = 0;
+float Xn_pre_2 = 0;
+float Xn_pre_3 = 0;
+float Xn_est_1 = 0;
+float Xn_est_2 = 0;
+float Xn_est_3 = 0;
+//推定、予測する誤差の共分散
+float p11_pre = 1;
+float p12_pre = 0;
+float p13_pre = 0; 
+float p21_pre = 0;
+float p22_pre = 1; 
+float p23_pre = 0; 
+float p31_pre = 0; 
+float p32_pre = 0; 
+float p33_pre = 1; 
+float p11_est = 1;
+float p12_est = 0;
+float p13_est = 0; 
+float p21_est = 0;
+float p22_est = 1; 
+float p23_est = 0; 
+float p31_est = 0; 
+float p32_est = 0; 
+float p33_est = 1; 
+//イノベーション
+float e1 = 0;
+float e2 = 0;
+//カルマンゲイン計算のための変数
+float s11 = 0;
+float s12 = 0;
+float s13 = 0;
+float s21 = 0;
+float s22 = 0;
+float s23 = 0;
+float s_i11 = 0;
+float s_i12 = 0;
+float s_i13 = 0;
+float s_i21 = 0;
+float s_i22 = 0;
+float s_i23 = 0;
+//カルマンゲイン
+float K11 = 0;
+float K12 = 0;
+float K21 = 0;
+float K22 = 0;
+float K31 = 0;
+float K32 = 0;
+//定数
+float g = 9.81;
+float u0 = 0.994522;
+float w0 = -0.104528;
+float Cv = 0.311026;
+float V0 = 0;
+float delta_p = 0;
+float delta_r = 0;
+float theta0 = -0.10472;
+float delta_phi = 0;
+float delta_psi = 0;
+//離散化した運動方程式の要素
+float f11 = 1 - ((2 * Cv * V0 * h_horizontal) / m);
+float f12 = 0;
+float f13 = 0;
+float f21 = h_horizontal;
+float f22 = 1;
+float f23 = ((u0 * cos(theta0)) + (w0 * sin(theta0))) * h_horizontal;
+float f31 = 0;
+float f32 = 0;
+float f33 = 1;
+//離散化した制御行列の要素
+float u1 = ((-u0 * delta_r) + (w0 * delta_p) + (g * cos(theta0) * delta_phi)) * h_horizontal;
+float u2 = -w0 * delta_phi * h_horizontal;
+float u3 = (delta_r * h_horizontal)/cos(theta0);
+//システムノイズ
+float q1 = 0.1;
+float q2 = 0.1;
+float q3 = 0.1;
+//観測の共分散
+float r1 = 0.01;
+float r2 = 0.01;
+
+// float initialize_v( Matrix<float, 3 ,3> &Sigma_Yn_est_v,
+//                     Matrix<float, 3,3> &Sigma_Yn_pre_v,
+//                     Matrix<float, 1,3> &observation_mat_v,
+//                     Matrix<float, 3,1> &observation_mat_transposed_v,
+//                     Matrix<float, 3,1> &control_mat_v,
+//                     Matrix<float, 3,3> &unit_mat_v,
+//                     Matrix<float, 3,3> &system_mat_v,
+//                     Matrix<float, 2, 2> &Kal_element_v,
+//                     Matrix<float, 2, 2> &R_mat_v,
+//                     Matrix<float, 3,3> &Q_mat_v)
+// {
+//   Sigma_Yn_est_v(0,0) = 1.0;
+//   Sigma_Yn_est_v(1,1) = 1.0;
+//   Sigma_Yn_est_v(2,2) = 1.0;
+//   Sigma_Yn_pre_v(0,0) = 1.0;
+//   Sigma_Yn_pre_v(1,1) = 1.0;
+//   Sigma_Yn_pre_v(2,2) = 1.0;
+//   control_mat_v(0,0) = (-u0*delta_r + w0*delta_p + g*cos(theta0)*delta_phi) * h_horizontal;
+//   control_mat_v(1,0) = -w0*delta_phi*h_horizontal;
+//   control_mat_v(2,0) = 1/cos(theta0) * delta_r * h_horizontal;
+//   unit_mat_v(0,0) = 1.0;
+//   unit_mat_v(1,1) = 1.0;
+//   unit_mat_v(2,2) = 1.0;
+//   system_mat_v(0,0) = 1-((2*Cv*V0*h_horizontal)/m);
+//   system_mat_v(1,0) = h_kalman;
+//   system_mat_v(1,1) = 1;
+//   system_mat_v(1,2) = u0*cos(theta0) + w0*sin(theta0);
+//   system_mat_v(2,2) = 1.0;
+//   observation_mat_v(0,1) = 1.0;
+//   observation_mat_v(0,2) = 1.0;
+//   R_mat_v(0,0) = r1;
+//   R_mat_v(1,1) = r2;
+//   Q_mat_v(0,0) = q1;
+//   Q_mat_v(1,1) = q2;
+//   Q_mat_v(2,2) = q3;
+//   return 0;
+// }
+float initialize( Matrix<float, 2 ,2> &Sigma_Yn_est,
+                    Matrix<float, 2,2> &Sigma_Yn_pre,
+                    Matrix<float, 1,2> &observation_mat,
+                    Matrix<float, 2,1> &observation_mat_transposed,
+                    Matrix<float, 2,1> &control_mat,
+                    Matrix<float, 2,2> &unit_mat,
+                    Matrix<float, 2,2> &system_mat,
+                    Matrix<float, 1, 1> &Kal_element,
+                    Matrix<float, 2, 1> &K,
+                    Matrix<float, 1, 1> &R_mat,
+                    Matrix<float,1,1> &Kal_element_inv,
+                    Matrix<float, 2,2> &Q_mat
+                  )
+
+{
+    Sigma_Yn_est(0,0) = 1.0;
+    Sigma_Yn_est(0,1) = 0.0;
+    Sigma_Yn_est(1,0) = 0.0;
+    Sigma_Yn_est(1,1) = 1.0;
+    Sigma_Yn_pre(0,0) = 1;
+    Sigma_Yn_pre(0,1) = 0;
+    Sigma_Yn_pre(1,0) = 0;
+    Sigma_Yn_pre(1,1) = 1;
+    control_mat(0,0) = h_kalman/m;
+    control_mat(1,0) = 0;
+    unit_mat(0,0) = 1;
+    unit_mat(0,1) = 0;
+    unit_mat(1,0) = 0;
+    unit_mat(1,1) = 1;
+    system_mat(0,0) = 1;
+    system_mat(0,1) = 0;
+    system_mat(1,0) = h_kalman;
+    system_mat(1,1) = 1;
+    observation_mat(0,0) = 0.0;
+    observation_mat(0,1) = 1.0;
+    R_mat(0,0) = std::pow(stdv_R,2.0);
+    // R = std::pow(stdv_R,2.0);
+    Q_mat(0,0) = Q_k_v;
+    Q_mat(0,1) = 0;
+    Q_mat(1,0) = 0;
+    Q_mat(1,1) = Q_k;
+    return 0;
+}
+
+float Kalman_holizontal(float camera_y,float camera_psi,float deltaP,float deltaR,float deltaPhi){
+
+  //離散化した運動方程式の要素
+  f11 = 1-((2 * Cv * V0 * h_horizontal) / m);
+  f23 = ((u0 * cos(theta0)) + (w0 * sin(theta0))) * h_horizontal;
+
+  //離散化した制御行列の要素
+  u1 = ((-u0 * deltaR )+ (w0 * deltaP) + (g * cos(theta0) * deltaPhi)) * h_horizontal;
+  u2 = -w0 * deltaPhi * h_horizontal;
+  u3 = (deltaR * h_horizontal)/cos(theta0);
+
+  //Xの予測
+  Xn_pre_1 = (f11 * Xn_est_1) + (f12 * Xn_est_2) +(f13 * Xn_est_3) + u1;
+  Xn_pre_2 = (f21 * Xn_est_1) + (f22 * Xn_est_2) +(f23 * Xn_est_3) + u2;
+  Xn_pre_3 = (f31 * Xn_est_1) + (f32 * Xn_est_2) +(f33 * Xn_est_3) + u3;
+  //printf("u2 : %9.6f\n",u1);
+  //printf("Xn_pre_2 : %9.6f\n",Xn_pre_1);
+
+  //誤差共分散の予測
+  p11_pre = (f11 * f11 * p11_est) + q1;
+  p12_pre = (f11 * f21 * p11_est) + (f11 * p12_est) + (f11 * f23 * p13_est) ;
+  p13_pre = f11 * p13_est;
+  p21_pre = f11 * ((f21 * p11_est) + p21_est + (f23 * p31_est));
+  p22_pre = f21 * ((f21 * p11_est) + p21_est + (f23 * p31_est)) + (f21 * p12_est) + p22_est + (f23 * p32_est) + (f23 * ((f21 * p13_est) + p23_est + (f23 * p33_est))) + q2; 
+  p23_pre = (f21 * p13_est) + p23_est + (f23 * p33_est); 
+  p31_pre = p31_est * f11; 
+  p32_pre = (p31_est * f21) + p32_est + (p33_est * f23); 
+  p33_pre = p33_est + q3; 
+  // printf(" p11_pre: %9.6f\n",p11_pre);
+  // printf(" p12_pre: %9.6f\n",p12_pre);
+  // printf(" p13_pre: %9.6f\n",p13_pre);
+  // printf(" p21_pre: %9.6f\n",p21_pre);
+  // printf(" p22_pre: %9.6f\n",p22_pre);
+  // printf(" p23_pre: %9.6f\n",p23_pre);
+  // printf(" p31_pre: %9.6f\n",p31_pre);
+  // printf(" p32_pre: %9.6f\n",p32_pre);
+  // printf(" p33_pre: %9.6f\n",p33_pre);
+
+  //イノベーション
+  e1 = camera_y - Xn_pre_2;
+  e2 = camera_psi - Xn_pre_3;
+
+  //カルマンゲインの計算
+  s11 = r1 + p22_est;
+  s12 = p23_pre;
+  s21 = p32_pre;
+  s22 = r2 + p33_pre;
+  s_i11 = s22 / (s11*s22 - s12*s21);
+  s_i12 = -s12 / (s11*s22 - s12*s21);
+  s_i21 = -s21 / (s11*s22 - s12*s21);
+  s_i22 = s11 / (s11*s22 - s12*s21);
+  K11 = (p12_pre * s_i11) + (p13_pre * s_i21);
+  K12 = (p12_pre * s_i12) + (p13_pre * s_i22);
+  K21 = (p22_pre * s_i11) + (p23_pre * s_i21);
+  K22 = (p22_pre * s_i12) + (p23_pre * s_i22);
+  K31 = (p32_pre * s_i11) + (p33_pre * s_i21);
+  K32 = (p32_pre * s_i12) + (p33_pre * s_i22);
+  // printf(" s11: %9.6f\n",s11);
+  // printf(" s12: %9.6f\n",s12);
+  // printf(" s21: %9.6f\n",s21);
+  // printf(" s22: %9.6f\n",s22);
+  // printf(" s_i11: %9.6f\n",s_i11);
+  // printf(" s_i12: %9.6f\n",s_i12);
+  // printf(" s_i21: %9.6f\n",s_i21);
+  // printf(" s_i22: %9.6f\n",s_i22);
+  // printf(" K11: %9.6f\n",K11);
+  // printf(" K12: %9.6f\n",K12);
+  // printf(" K21: %9.6f\n",K21);
+  // printf(" K22: %9.6f\n",K22);
+  // printf(" K31: %9.6f\n",K31);
+  // printf(" K32: %9.6f\n",K32);
+  // printf(" e1: %9.6f\n",e1);
+  // printf(" e2: %9.6f\n",e2);
+
+  //状態の推定
+  Xn_est_1 = Xn_pre_1 + (K11*e1 )+ (K12*e2);
+  Xn_est_2 = Xn_pre_2 + (K21*e1) + (K22*e2);
+  Xn_est_3 = Xn_pre_3 + (K31*e1) + (K32*e2);
+  //printf("Xn_est_1 : %9.6f\n",Xn_pre_1);
+
+  //誤差の共分散の推定
+  p11_est = p11_pre - (K11*p21_pre) -(K12*p31_pre);
+  p12_est = p12_pre - (K11*p22_pre) -(K12*p32_pre);
+  p13_est = p13_pre - (K11*p23_pre) - (K12*p33_pre);
+  p21_est = p21_pre * (1 - K21) - (K22*p31_pre);
+  p22_est = p22_pre * (1 - K21) - (K22*p32_pre); 
+  p23_est = p23_pre * (1 - K21) - (K22*p33_pre);
+  p31_est = -(K31*p21_pre) + (p31_pre*(1 - K32));
+  p32_est = -(K31*p22_pre) + (p32_pre*(1 - K32));
+  p33_est = -(K31*p23_pre) + (p33_pre*(1 - K32));
+  //printf(" p11_est: %9.6f\n",p11_est);
+  // printf(" p12_est: %9.6f\n",p12_est);
+  // printf(" p13_est: %9.6f\n",p13_est);
+  // printf(" p21_est: %9.6f\n",p21_est);
+  // printf(" p22_est: %9.6f\n",p22_est);
+  // printf(" p23_est: %9.6f\n",p23_est);
+  // printf(" p31_est: %9.6f\n",p31_est);
+  // printf(" p32_est: %9.6f\n",p32_est);
+  // printf(" p33_est: %9.6f\n",p33_est);
+  // printf("----------------------------------");
+
+  return 1;
+}
+
+// float Kalman_y_mat(float camera_y,float camera_psi){
+//     // yn_mat_v(0,0) = camera_y;
+//     // yn_mat_v(1,1) = camera_psi;
+//     // //値の更新
+//     // last_mu_Yn_pre_v = mu_Yn_est_v;
+//     // last_Sigma_Yn_pre_v = Sigma_Yn_est_v;
+
+//     // //カルマンフィルタ
+//     // mu_Yn_pre_v = (system_mat_v * last_mu_Yn_pre_v) + (control_mat_v*(Ax));
+//     // Sigma_Yn_pre = (system_mat * last_Sigma_Yn_pre * system_mat.transpose()) + Q_mat;
+//     // k_inv = ((observation_mat * Sigma_Yn_pre * observation_mat.transpose()) + R_mat);
+//     // K = (Sigma_Yn_pre * observation_mat.transpose()) / k_inv(0,0);
+//     // mu_Yn_est = mu_Yn_pre + K * (observe_y - (observation_mat * mu_Yn_pre));
+//     // Sigma_Yn_est = (unit_mat - (K * observation_mat)) * Sigma_Yn_pre;
+    
+//     // return u_v;
+//     // return mu_Yn_est(1,0);
+//     return 1;
+// }
+
+float Kalman_PID(float observe_y,float Ax)
+// float Kalman_PID(float observe_y,float Ax)
+{
+    yn_mat(0,0) = observe_y;
+    //値の更新
+    last_mu_Yn_pre = mu_Yn_est;
+    last_Sigma_Yn_pre = Sigma_Yn_est;
+
+    //カルマンフィルタ
+    mu_Yn_pre = (system_mat * last_mu_Yn_pre) + (control_mat*(Ax));
+    Sigma_Yn_pre = (system_mat * last_Sigma_Yn_pre * system_mat.transpose()) + Q_mat;
+    k_inv = ((observation_mat * Sigma_Yn_pre * observation_mat.transpose()) + R_mat);
+    K = (Sigma_Yn_pre * observation_mat.transpose()) / k_inv(0,0);
+    mu_Yn_est = mu_Yn_pre + K * (observe_y - (observation_mat * mu_Yn_pre));
+    Sigma_Yn_est = (unit_mat - (K * observation_mat)) * Sigma_Yn_pre;
+    
+    // return u_v;
+    return mu_Yn_est(1,0);
+    //return 1;
+}
+
+float alt_PID(float ref_alt){
+    // error = target - mu_Yn_est(1,0);
+    // error = mu_Yn_est(1,0) - ref_alt ;
+    error =  ref_alt - mu_Yn_est(1,0) ;
+    integral = integral + (h_kalman * (error + last_error)) / (2 * Ki);
+    differential = (((2 * eta * Kd - h_kalman) * differential) / (2 * eta * Kd + h_kalman)) + ((2 * Kd) * (error - last_error)) / (2 * eta * Kd + h_kalman);
+    // de = (error - last_error)/Control_T;
+    // ie = ie + ((error + last_error)*(Control_T/2));
+    // u_n(0,0)= (Kp*error) + (Ki*ie) + (Kd*de);
+    u_n(0,0) = Kp * (error + integral + differential);
+    u = u_n(0,0);
+
+    // //PID for velocity
+    // //rが理想値
+    error_v = u - mu_Yn_est(0,0);
+    //error_v = mu_Yn_est(0,0) - u;
+    integral_v = integral_v + (h_kalman * (error_v + last_error_v)) / (2 * Ki_v);
+    differential_v = (((2 * eta * Kd_v - h_kalman) * differential) / (2 * eta * Kd_v + h_kalman)) + ((2 * Kd_v) * (error_v - last_error_v)) / (2 * eta * Kd_v + h_kalman);
+    // de_v = (error_v - last_error_v)/Control_T;
+    // ie_v = ie_v + ((error_v + last_error_v)*(Control_T/2));
+    // u_n_v(0,0)= (Kp_v*error_v) + (Ki_v*ie_v) + (Kd_v*de_v);
+    u_n_v(0,0) = Kp_v * (error_v + integral_v + differential_v);
+    u_v = u_n_v(0,0);
+
+    return u_v;
+}
+
+void Kalman_init(void){
+  initialize(
+          Sigma_Yn_est,
+          Sigma_Yn_pre,
+          observation_mat,
+          observation_mat_transposed,
+          control_mat,
+          unit_mat,
+          system_mat,
+          Kal_element,
+          K,
+          R_mat,
+          Kal_element_inv,
+          Q_mat);
+}
+
+// void Kalman_init_v(void){
+//   initialize_v(
+//           Sigma_Yn_est_v,
+//           Sigma_Yn_pre_v,
+//           observation_mat_v,
+//           observation_mat_transposed_v,
+//           control_mat_v,
+//           unit_mat_v,
+//           system_mat_v,
+//           Kal_element_v,
+//           R_mat_v,
+//           Q_mat_v);
+// }
+
 
 //Runge-Kutta Method 
 uint8_t rk4(uint8_t (*func)(float t, 
@@ -329,3 +789,66 @@ uint8_t ekf( Matrix<float, 7, 1> &xe,
 
   return 0;
 }
+
+// void initialize(void){
+//   Sigma_Yn_est(0,0) = 1.0;
+//   Sigma_Yn_est(0,1) = 0.0;
+//   Sigma_Yn_est(1,0) = 0.0;
+//   Sigma_Yn_est(1,1) = 1.0;
+//   Sigma_Yn_pre(0,0) = 1;
+//   Sigma_Yn_pre(0,1) = 0;
+//   Sigma_Yn_pre(1,0) = 0;
+//   Sigma_Yn_pre(1,1) = 1;
+//   R_mat(0,0) = std::pow(stdv_R,2.0);
+//   control_mat(0,0) = h_kalman/m;
+//   control_mat(1,0) = 0;
+//   unit_mat(0,0) = 1;
+//   unit_mat(0,1) = 0;
+//   unit_mat(1,0) = 0;
+//   unit_mat(1,1) = 1;
+//   system_mat(0,0) = 1;
+//   system_mat(0,1) = 0;
+//   system_mat(1,0) = 0;
+//   system_mat(1,1) = h_kalman;
+//   observation_mat(0,0) = 0.0;
+//   observation_mat(0,1) = 1.0;
+//   //Q_mat(0,0) = Q;
+//   observation_mat_transposed = observation_mat.transpose();
+//   Kal_element = observation_mat * Sigma_Yn_pre * observation_mat_transposed + R_mat;
+//   K = (Sigma_Yn_pre * observation_mat_transposed) * Kal_element_inv;
+// }
+
+// float Kalman_PID(float yn) {
+//   initialize();
+//   Matrix<float, 1,1> yn_mat = MatrixXf::Zero(1,1);
+//   yn_mat(0,0) = yn;
+
+//   //値の更新
+//   last_mu_Yn_pre = mu_Yn_est;
+//   last_Sigma_Yn_pre = Sigma_Yn_est;
+//   last_error = error;
+
+//   //カルマンフィルタ
+//   mu_Yn_pre = (system_mat * last_mu_Yn_pre) + (control_mat*u_n);
+
+//   Q_mat(0,0) = Q_k;
+//   Q_mat(0,1) = Q_k;
+//   Q_mat(1,0) = Q_k;
+//   Q_mat(1,1) = Q_k;
+//   Sigma_Yn_pre = (system_mat * last_Sigma_Yn_pre * system_mat.transpose()) + Q_mat;
+//   //Sigma_Yn_pre = (system_mat * last_Sigma_Yn_pre * system_mat.transpose()).eval() + Q;
+//   K = (Sigma_Yn_pre * observation_mat_transposed) * Kal_element_inv;
+
+//   mu_Yn_est = mu_Yn_pre + K * (yn_mat - observation_mat * mu_Yn_pre);
+//   Sigma_Yn_est = (unit_mat - (K * observation_mat)) * Sigma_Yn_pre;
+
+//   //PID
+
+//   error = r - mu_Yn_est(1,0);
+//   de = (error - last_error)/Control_T;
+//   ie = ie + ((error + last_error)*(Control_T/2));
+//   u_n(0,0)= (Kp*error) + (Ki*ie) + (Kd*de);
+//   u = u_n(0,0);
+//   return mu_Yn_est(1,0);
+
+// }

@@ -23,6 +23,7 @@ uint16_t LedBlinkCounter=0;
 float FR_duty, FL_duty, RR_duty, RL_duty;
 float P_com, Q_com, R_com;
 float T_ref;
+float T_stick;
 float Pbias=0.0,Qbias=0.0,Rbias=0.0;
 float Phi_bias=0.0,Theta_bias=0.0,Psi_bias=0.0;  
 float Phi,Theta,Psi;
@@ -45,12 +46,49 @@ Matrix<float, 6, 6> R;// = MatrixXf::Identity(6, 6)*0.0001;
 Matrix<float, 7 ,6> G;
 Matrix<float, 3 ,1> Beta;
 
+Matrix<float, 3 ,3> lotate_mat = MatrixXf::Zero(3,3);
+float f_distance = 0;
+float f_distance2 = 0;
+float f_distance3 = 0;
+float lotated_distance = 0;
+float Kalman_alt = 0;
+float z_acc = 0;
+float auto_mode_count = 0;
+float auto_mode = 0;
+float ideal;
+float hove_time = 0.0;
+float flying_mode = 0;
+float input = 0;
+float stop_flag = 0;
+uint64_t count_up = 7;
+volatile uint8_t altitude_has_sample = 0;
+volatile uint32_t last_altitude_update_us = 0;
+// Provisional 200 ms value; must be checked against H2 measured ToF sample-gap distribution before use.
+const uint32_t AUTO_ALTITUDE_STALE_US = 200000;
+uint8_t altitude_hold_fault = 0;
+float last_valid_altitude_T_ref = 0;
+Matrix<float, 1 ,3> distance_mat = MatrixXf::Zero(1,3);
+Matrix<float, 1 ,3> f_distance_mat = MatrixXf::Zero(1,3);
+
+extern float error;
+extern float last_error;
+extern float integral;
+extern float differential;
+extern float u;
+extern float error_v;
+extern float last_error_v;
+extern float integral_v;
+extern float differential_v;
+extern float u_v;
+extern Matrix<float, 1,1> u_n;
+extern Matrix<float, 1,1> u_n_v;
+
 //Log
 uint16_t LogdataCounter=0;
 uint8_t Logflag=0;
 volatile uint8_t Logoutputflag=0;
 float Log_time=0.0;
-const uint8_t DATANUM=38; //Log Data Number
+const uint8_t DATANUM=46; //Log Data Number
 const uint32_t LOGDATANUM=48000;
 float Logdata[LOGDATANUM]={0.0};
 
@@ -281,7 +319,6 @@ void loop_400Hz(void)
   }
   E_time=time_us_32();
   D_time=E_time-S_time;
-  rgbled_red();
 }
 
 void control_init(void)
@@ -371,6 +408,116 @@ void motor_stop(void)
   set_duty_rl(0.0);
 }
 
+void lotate_altitude_init(float Theta,float Psi,float Phi){
+  lotate_mat(0,0) = cos(Theta)*cos(Psi);
+  lotate_mat(0,1) = cos(Theta)*sin(Psi);
+  lotate_mat(0,2) = -sin(Theta);
+  lotate_mat(1,0) = (sin(Phi)*sin(Theta)*cos(Psi))-(cos(Phi)*sin(Psi));
+  lotate_mat(1,1) = (sin(Phi)*sin(Theta)*sin(Psi)) + (cos(Phi) * cos(Psi));
+  lotate_mat(1,2) = sin(Phi)*cos(Theta);
+  lotate_mat(2,0) = (cos(Phi)*sin(Theta)*cos(Psi)) + (sin(Phi)*sin(Psi));
+  lotate_mat(2,1) = (cos(Phi)*sin(Theta)*sin(Psi)) - (sin(Phi)*cos(Psi));
+  lotate_mat(2,2) = cos(Phi)*cos(Theta);
+}
+
+float lotate_altitude(float l_distance){
+  // distance_mat(0,0) = 0;
+  // distance_mat(0,1) = 0;
+  distance_mat(0,2) = l_distance;
+  f_distance_mat =  distance_mat * lotate_mat;
+  f_distance = f_distance_mat(0,0);
+  f_distance2 = f_distance_mat(0,1);
+  f_distance3 = f_distance_mat(0,2);
+
+  return f_distance3;
+}
+
+//自動離着陸モード
+void Auto_fly(void){
+  // Current i-26 safety adaptation. A zero timeout keeps auto flight disabled.
+  if(altitude_has_sample == 0
+   || AUTO_ALTITUDE_STALE_US == 0
+   || !std::isfinite(Kalman_alt)
+   || (uint32_t)(time_us_32() - last_altitude_update_us) > AUTO_ALTITUDE_STALE_US)
+  {
+    return;
+  }
+
+  //test_Hovering();
+  if (flying_mode == 1){
+    Auto_takeoff();
+  }
+
+  else if(flying_mode == 2){
+    Hovering();
+  }
+
+  else if (flying_mode == 3){
+    Auto_landing();
+  }
+}
+
+//ホバリング
+void Hovering(void){
+  //実験なので4秒
+  //本番はゴールを見つけたら着陸モード
+  if (hove_time < 15)
+  {
+    input = alt_PID(ideal);
+    T_ref = T_stick + (input);
+    hove_time = hove_time + 0.01;
+  }
+  else{
+    flying_mode = 3;
+    //Auto_landing();
+  }
+
+  // input = alt_PID(ideal);
+  // T_ref = T_stick + (input);
+}
+
+//自動着陸
+void Auto_landing(void){
+  if (Kalman_alt > 250)
+  {
+    ideal = ideal - 0.45;//高度の目標値更新のコード
+    if (ideal <= 0){
+      ideal = 0;
+    }
+    input = alt_PID(ideal);
+    T_ref = T_stick + (input);
+  }
+  else if(Kalman_alt <= 250){
+    T_ref = T_ref - 0.03;
+  }
+  else{
+    stop_flag = 1;
+  }
+}
+
+//自動離陸
+void Auto_takeoff(void){
+
+  if (Kalman_alt <= 250){
+    if (T_ref < 3.4){
+      T_stick = T_stick + 0.1;
+      T_ref = T_stick;
+    }
+    else {
+      T_stick = T_stick + 0.002;
+      T_ref = T_stick;
+    }
+  }
+
+  if (Kalman_alt >= 650){//ここ変えてみる
+    ideal = 700;
+    // input = alt_PID(ideal);
+    // T_ref = T_stick + (input);
+    //Hovering();
+    flying_mode = 2;
+  }
+}
+
 void rate_control(void)
 {
   float p_rate, q_rate, r_rate;
@@ -394,7 +541,106 @@ void rate_control(void)
   p_ref = Pref;
   q_ref = Qref;
   r_ref = Rref;
-  T_ref = 0.6 * BATTERY_VOLTAGE*(float)(Chdata[2]-CH3MIN)/(CH3MAX-CH3MIN);
+  if(Chdata[5] > (CH6MAX + CH6MIN)*0.5)
+  {
+    if(altitude_hold_fault == 1)
+    {
+      auto_mode = 0;
+      input = 0;
+      T_ref = last_valid_altitude_T_ref;
+    }
+    else if(auto_mode_count == 0)
+    {
+      if(altitude_has_sample == 0
+       || AUTO_ALTITUDE_STALE_US == 0
+       || !std::isfinite(Kalman_alt)
+       || (uint32_t)(time_us_32() - last_altitude_update_us) > AUTO_ALTITUDE_STALE_US)
+      {
+        auto_mode = 0;
+        input = 0;
+        T_ref = 1.0 * BATTERY_VOLTAGE*(float)(Chdata[2]-CH3MIN)/(CH3MAX-CH3MIN);
+      }
+      else
+      {
+        auto_mode = 1;
+        auto_mode_count = 1;
+        ideal = Kalman_alt;
+        T_stick = 1.0 * BATTERY_VOLTAGE*(float)(Chdata[2]-CH3MIN)/(CH3MAX-CH3MIN);
+        input = 0;
+        count_up = 7;
+        altitude_hold_fault = 0;
+        last_valid_altitude_T_ref = T_stick;
+
+        error = 0;
+        last_error = 0;
+        integral = 0;
+        differential = 0;
+        u = 0;
+        error_v = 0;
+        last_error_v = 0;
+        integral_v = 0;
+        differential_v = 0;
+        u_v = 0;
+        u_n(0,0) = 0;
+        u_n_v(0,0) = 0;
+      }
+    }
+    else
+    {
+      auto_mode = 1;
+    }
+  }
+  else
+  {
+    auto_mode = 0;
+    auto_mode_count = 0;
+    input = 0;
+    altitude_hold_fault = 0;
+    count_up = 7;
+    T_ref = 1.0 * BATTERY_VOLTAGE*(float)(Chdata[2]-CH3MIN)/(CH3MAX-CH3MIN);
+  }
+
+  if(auto_mode == 1)
+  {
+    if(count_up >= 8)
+    {
+      count_up = 0;
+      if(altitude_has_sample == 0
+       || AUTO_ALTITUDE_STALE_US == 0
+       || !std::isfinite(Kalman_alt)
+       || (uint32_t)(time_us_32() - last_altitude_update_us) > AUTO_ALTITUDE_STALE_US)
+      {
+        altitude_hold_fault = 1;
+        auto_mode = 0;
+        input = 0;
+        T_ref = last_valid_altitude_T_ref;
+      }
+      else
+      {
+        float proposed_input = alt_PID(ideal);
+        float proposed_T_ref = T_stick + proposed_input;
+        if(std::isfinite(proposed_input) && std::isfinite(proposed_T_ref))
+        {
+          input = proposed_input;
+          T_ref = proposed_T_ref;
+          last_valid_altitude_T_ref = T_ref;
+        }
+        else
+        {
+          altitude_hold_fault = 1;
+          auto_mode = 0;
+          input = 0;
+          T_ref = last_valid_altitude_T_ref;
+        }
+      }
+      // Auto_fly();
+    }
+    count_up += 1;
+    if(altitude_hold_fault == 0)
+    {
+      T_ref = T_stick + input;
+    }
+  }
 
   //Error
   p_err = p_ref - p_rate;
@@ -410,10 +656,10 @@ void rate_control(void)
   // 1250/11.1=112.6
   // 1/11.1=0.0901
   
-  FR_duty = (T_ref +(-P_com +Q_com +R_com))*0.9;
-  FL_duty = (T_ref +( P_com +Q_com -R_com))*0.9;
-  RR_duty = (T_ref +(-P_com -Q_com -R_com))*0.9;
-  RL_duty = (T_ref +( P_com -Q_com +R_com))*0.9;
+  FR_duty = (T_ref +(-P_com +Q_com +R_com))*0.09;
+  FL_duty = (T_ref +( P_com +Q_com -R_com))*0.09;
+  RR_duty = (T_ref +(-P_com -Q_com -R_com))*0.09;
+  RL_duty = (T_ref +( P_com -Q_com +R_com))*0.09;
   //FR_duty = (T_ref)*0.0901;
   //FL_duty = (T_ref)*0.0901;
   //RR_duty = (T_ref)*0.0901;
@@ -599,6 +845,14 @@ void logging(void)
       Logdata[LogdataCounter++]=Rbias;                    //36
       Logdata[LogdataCounter++]=T_ref;                    //37
       Logdata[LogdataCounter++]=Acc_norm;                 //38
+      Logdata[LogdataCounter++]=distance;                 //39
+      Logdata[LogdataCounter++]=lotated_distance;         //40
+      Logdata[LogdataCounter++]=Phi;                      //41
+      Logdata[LogdataCounter++]=Theta;                    //42
+      Logdata[LogdataCounter++]=rangeStatus;              //43
+      Logdata[LogdataCounter++]=Kalman_alt;               //44
+      Logdata[LogdataCounter++]=mu_Yn_est(0,0);           //45
+      Logdata[LogdataCounter++]=z_acc;                    //46
 
    
     }

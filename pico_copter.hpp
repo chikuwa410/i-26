@@ -11,8 +11,8 @@
 #include "pwm.hpp"
 #include "radio.hpp"
 #include "control.hpp"
-#include <math.h>
 #include "rgbled.hpp"
+#include <math.h>
 
 #define LED_PIN 25
 #define MAINLOOP loop_400Hz
@@ -22,4 +22,3 @@ extern uint8_t Arm_flag;
 extern semaphore_t sem;
 
 #endif
-

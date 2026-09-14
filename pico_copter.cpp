@@ -21,14 +21,17 @@ int main(void)
   //Initialize Radio
   radio_init();
   
-  //Initialize Variavle
+  //Initialize Variable
   variable_init();
   
-  //Initilize Control
+  //Initialize Control
   control_init();
+
+  //ToFセンサの初期化
+  const bool altitude_available = initialize_Altitude();
+  printf("#ToF init=%s\n", altitude_available ? "OK" : "FAILED");
   
   //Initialize PWM
-  //Start 400Hz Interval
   ESC_calib=0;
   pwm_init();
 
@@ -45,11 +48,34 @@ int main(void)
   multicore_launch_core1(angle_control);  
 
   Arm_flag=1;
+  uint64_t last_tof_poll_time_us=time_us_64();
   
   while(1)
   {
-    //printf("Arm_flag:%d LockMode:%d\n",Arm_flag, LockMode);
+    uint64_t current_tof_poll_time_us=time_us_64();
+
+    if (altitude_available &&
+        current_tof_poll_time_us-last_tof_poll_time_us>=5000ULL)
+    {
+      last_tof_poll_time_us=current_tof_poll_time_us;
+
+      if (get_Altitude())
+      {
+        z_acc = Az - 9.76548;
+
+        lotate_altitude_init(Theta,Psi,Phi);
+
+        lotated_distance = lotate_altitude(distance);
+
+        Kalman_alt = Kalman_PID(lotated_distance,z_acc);
+
+        last_altitude_update_us = time_us_32();
+        altitude_has_sample = 1;
+      }
+    }
+
     tight_loop_contents();
+
     while (Logoutputflag==1){
       log_output();
     }

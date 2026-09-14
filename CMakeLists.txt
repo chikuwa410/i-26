@@ -56,6 +56,8 @@ add_executable(i26
     pwm.cpp
     radio.cpp
     control.cpp
+    VL53L1X_api.c
+    vl53l1_platform.c
     rgbled.cpp
     WS2812.cpp
 )
@@ -65,11 +67,13 @@ target_include_directories(i26 PRIVATE
     "${EIGEN3_INCLUDE_DIR}"
 )
 
+
 target_link_libraries(i26 PRIVATE
     hardware_spi
     hardware_pwm
-    hardware_pio
     hardware_uart
+    hardware_i2c
+    hardware_pio
     pico_stdlib
     pico_multicore
 )

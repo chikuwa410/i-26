@@ -10,7 +10,6 @@
 #include <Eigen/Dense>
 #include "ekf.hpp"
 #include <math.h>
-#include "rgbled.hpp"
 
 using Eigen::MatrixXd;
 using Eigen::MatrixXf;
@@ -29,10 +28,33 @@ void angle_control(void);
 void gyro_calibration(void);
 void variable_init(void);
 void log_output(void);
+void lotate_altitude_init(float Theta,float Psi,float Phi);
+float lotate_altitude(float l_distance);
+void Auto_fly(void);
+void Auto_takeoff(void);
+void Auto_landing(void);
+void Hovering(void);
 
 //グローバル変数
 extern uint8_t LockMode;
 extern volatile uint8_t Logoutputflag;
+extern float Az;
+extern float Phi,Theta,Psi;
+extern float lotated_distance;
+extern float Kalman_alt;
+extern float z_acc;
+extern float T_stick;
+extern float auto_mode_count;
+extern float auto_mode;
+extern float ideal;
+extern float hove_time;
+extern float flying_mode;
+extern float input;
+extern float stop_flag;
+extern uint64_t count_up;
+extern volatile uint8_t altitude_has_sample;
+extern volatile uint32_t last_altitude_update_us;
+extern const uint32_t AUTO_ALTITUDE_STALE_US;
 
 class PID
 {
