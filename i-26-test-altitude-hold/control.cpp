@@ -123,6 +123,7 @@ void motor_stop(void);
 uint8_t lock_com(void);
 uint8_t logdata_out_com(void);
 void printPQR(void);
+void servo(void);
 
 #define AVERAGE 2000
 #define KALMANWAIT 6000
@@ -252,7 +253,6 @@ void loop_400Hz(void)
    
     //Rate Control (400Hz)
     rate_control();
-   
     if(AngleControlCounter==4)
     {
       AngleControlCounter=0;
@@ -715,6 +715,7 @@ void angle_control(void)
     E_time2=time_us_32();
     D_time2=E_time2-S_time2;
 
+    servo();
   }
 }
 
@@ -1131,4 +1132,10 @@ float Filter::update(float u)
   m_state = m_state * m_T /(m_T + m_h) + u * m_h/(m_T + m_h);
   m_out = m_state;
   return m_out;
+}
+
+
+void servo(void){
+  if(Chdata[SERVO]>400)payload_relese();
+  else payload_hook();
 }

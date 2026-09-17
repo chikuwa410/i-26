@@ -16,6 +16,10 @@
 #define DUTYMIN 1375
 #define DUTYMAX 2375
 
+//servo 
+#define SERVO_RELEASE 2700
+#define SERVO_HOOK 1250
+
 // PWM output GPIO assignment.
 // Change only these GPIO numbers when the wiring is changed.
 constexpr uint PWM_PIN_RL    = 15;
@@ -36,5 +40,7 @@ void set_duty_fr(float duty);
 void set_duty_fl(float duty);
 void set_duty_rr(float duty);
 void set_duty_rl(float duty);
+void payload_hook(void);
+void payload_relese(void);
 
 #endif

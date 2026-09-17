@@ -24,7 +24,7 @@
 #define CH8MAX 1904
 #define CH8MIN 144
 #define HOVERING 4
-
+#define SERVO    6
 
 //０番と1番ピンに接続
 #define UART_TX_PIN 0

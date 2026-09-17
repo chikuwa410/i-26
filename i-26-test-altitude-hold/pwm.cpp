@@ -24,6 +24,7 @@ const uint MOTOR_PWM_PINS[] = {
     PWM_PIN_RR,
     PWM_PIN_FL,
     PWM_PIN_FR,
+    
 };
 
 bool same_pwm_output(uint gpio_a, uint gpio_b)
@@ -151,4 +152,22 @@ void set_duty_rr(float duty)
 void set_duty_rl(float duty)
 {
     pwm_set_gpio_level(PWM_PIN_RL, motor_duty_to_level(duty));
+}
+
+void payload_hook(void)
+{
+    const uint slice_num = pwm_gpio_to_slice_num(PWM_PIN_SERVO);
+    const uint channel = pwm_gpio_to_channel(PWM_PIN_SERVO);
+
+    pwm_set_chan_level(slice_num, channel, SERVO_HOOK);
+    // printf("hook\n");
+}
+
+void payload_relese(void)
+{
+    const uint slice_num = pwm_gpio_to_slice_num(PWM_PIN_SERVO);
+    const uint channel = pwm_gpio_to_channel(PWM_PIN_SERVO);
+
+    pwm_set_chan_level(slice_num, channel, SERVO_RELEASE);
+    // printf("release\n");
 }
